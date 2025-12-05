@@ -66,7 +66,6 @@
 import { defineComponent } from 'vue'
 import pkg from 'idlive-document-capture-web/package.json';
 import type { CaptureEvent, ErrorEvent, DetectionEvent } from 'idlive-document-capture-web';
-import { DetectionError } from 'idlive-document-capture-web';
 import { EventFPSCounter } from '@/FpsCounter';
 
 export default defineComponent({
@@ -212,7 +211,7 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
       const errors = detectionResult.errors || [];
       
       // Convert error codes to user-friendly messages
-      this.detectionErrors = errors.map((error: DetectionError) => {
+      this.detectionErrors = errors.map((error: string) => {
         return this.getDetectionErrorMessage(error);
       });
       
@@ -221,14 +220,15 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
       
       this.fpsCounter.onEvent();
     },
-    getDetectionErrorMessage(error: DetectionError): string {
-      const errorMessages: Record<DetectionError, string> = {
-        [DetectionError.DOCUMENT_NOT_FOUND]: '📄 Document not found - Please position the document in the frame',
-        [DetectionError.DOCUMENT_SIZE_LOWER_THAN_10_PERCENT]: '📏 Document too small - Move closer to the document',
-        [DetectionError.DOCUMENT_BORDERS_OUTSIDE_OF_FRAME]: '🔲 Document edges outside frame - Ensure the entire document is visible',
-        [DetectionError.MULTIPLE_DOCUMENTS_IN_FRAME]: '📚 Multiple documents detected - Please show only one document at a time',
-        [DetectionError.DOCUMENT_TOO_CLOSE_TO_BORDER]: '⚠️ Document too close to edge - Center the document in the frame',
-        [DetectionError.LICENSE_NOT_INSTALLED]: '🔑 License error - Please check license configuration',
+    getDetectionErrorMessage(error: string): string {
+      // Use string literals matching the DetectionError enum values
+      const errorMessages: Record<string, string> = {
+        'DOCUMENT_NOT_FOUND': '📄 Document not found - Please position the document in the frame',
+        'DOCUMENT_SIZE_LOWER_THAN_10_PERCENT': '📏 Document too small - Move closer to the document',
+        'DOCUMENT_BORDERS_OUTSIDE_OF_FRAME': '🔲 Document edges outside frame - Ensure the entire document is visible',
+        'MULTIPLE_DOCUMENTS_IN_FRAME': '📚 Multiple documents detected - Please show only one document at a time',
+        'DOCUMENT_TOO_CLOSE_TO_BORDER': '⚠️ Document too close to edge - Center the document in the frame',
+        'LICENSE_NOT_INSTALLED': '🔑 License error - Please check license configuration',
       };
       
       return errorMessages[error] || `⚠️ ${error}`;
