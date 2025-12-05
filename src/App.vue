@@ -15,6 +15,7 @@
         @beforeCapture="beforeCapture"
         @capture="capture"
         @beforeOpen="beforeOpen"
+        :auto_capture_disabled="false"
         debug
         class="id-camera"
         ref="camera"
@@ -31,8 +32,14 @@
       <button class="close-camera_mobile" @click="closeCamera()">close</button>
       <button class="capture-camera_mobile" @click="takePhoto()" :disabled="isCapturing"></button>
     </div>
-    <div class="detection">
-      <b>Detection error:</b> {{ detectionText }}
+    <div class="detection" v-if="detectionErrors.length > 0">
+      <b>Detection feedback:</b>
+      <ul class="detection-errors">
+        <li v-for="(error, index) in detectionErrors" :key="index">{{ error }}</li>
+      </ul>
+    </div>
+    <div class="detection-success" v-else-if="isCameraReady && !isCapturing">
+      <b>✓ Document detected - Ready to capture</b>
     </div>
     <div class="result">
       <div class="result__label">
@@ -59,6 +66,7 @@
 import { defineComponent } from 'vue'
 import pkg from 'idlive-document-capture-web/package.json';
 import type { CaptureEvent, ErrorEvent, DetectionEvent } from 'idlive-document-capture-web';
+import { DetectionError } from 'idlive-document-capture-web';
 import { EventFPSCounter } from '@/FpsCounter';
 
 export default defineComponent({
@@ -70,6 +78,7 @@ export default defineComponent({
       results: [] as any[],
       errorText: '',
       detectionText: '',
+      detectionErrors: [] as string[],
       isResultsLoading: false,
       isCameraLoaded: false,
       isCameraOpened: false,
@@ -152,16 +161,34 @@ export default defineComponent({
         })
         .finally(() => this.isResultsLoading = false);
     },
-    initialize() {
+    async initialize() {
       console.log('initialize');
 
-      const detectorLicense = `-----BEGIN PGP SIGNATURE-----
+      // Try to load the new license file first, fallback to the old one
+      let detectorLicense: string;
+      
+      try {
+        const response = await fetch('/idlive-doc-detector-v2.4.4.eval-license.txt');
+        if (response.ok) {
+          const licenseText = await response.text();
+          // Try the license as-is (base64 format)
+          detectorLicense = licenseText.trim();
+          console.log('Using new license file (base64 format)');
+        } else {
+          throw new Error('License file not found');
+        }
+      } catch (error) {
+        console.warn('Could not load new license file, using fallback license:', error);
+        // Fallback to the original PGP signature format
+        detectorLicense = `-----BEGIN PGP SIGNATURE-----
 
 iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
 5jvhAQCVbhu5lchr+ITXghkcMXxCOxsJUfSTrsHpOBj86JM+OwEA+kZjiqHnBVYy
 7b7VrwO44HRHXq5wgziFtBTXBBlzRAM=
 =kHYS
 -----END PGP SIGNATURE-----`;
+      }
+      
       this.camera.setLicense(detectorLicense, 'documentDetector');
 
       this.isCameraLoaded = true;
@@ -181,10 +208,30 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
       this.fps = customEvent.detail;
     },
     detection(event: DetectionEvent) {
-      // console.log('detection', event.detail[0]);
-
-      this.detectionText = event.detail[0].errors[0];
+      const detectionResult = event.detail[0];
+      const errors = detectionResult.errors || [];
+      
+      // Convert error codes to user-friendly messages
+      this.detectionErrors = errors.map((error: DetectionError) => {
+        return this.getDetectionErrorMessage(error);
+      });
+      
+      // Keep the first error for backward compatibility
+      this.detectionText = errors.length > 0 ? errors[0] : '';
+      
       this.fpsCounter.onEvent();
+    },
+    getDetectionErrorMessage(error: DetectionError): string {
+      const errorMessages: Record<DetectionError, string> = {
+        [DetectionError.DOCUMENT_NOT_FOUND]: '📄 Document not found - Please position the document in the frame',
+        [DetectionError.DOCUMENT_SIZE_LOWER_THAN_10_PERCENT]: '📏 Document too small - Move closer to the document',
+        [DetectionError.DOCUMENT_BORDERS_OUTSIDE_OF_FRAME]: '🔲 Document edges outside frame - Ensure the entire document is visible',
+        [DetectionError.MULTIPLE_DOCUMENTS_IN_FRAME]: '📚 Multiple documents detected - Please show only one document at a time',
+        [DetectionError.DOCUMENT_TOO_CLOSE_TO_BORDER]: '⚠️ Document too close to edge - Center the document in the frame',
+        [DetectionError.LICENSE_NOT_INSTALLED]: '🔑 License error - Please check license configuration',
+      };
+      
+      return errorMessages[error] || `⚠️ ${error}`;
     },
     error(event: ErrorEvent) {
       const errorMessage = event.detail[0].message;
@@ -223,6 +270,7 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
       console.log('close');
 
       this.detectionText = '';
+      this.detectionErrors = [];
       this.isCameraReady = false;
       this.isCameraOpened = false;
       this.isCameraOpening = false;
@@ -368,6 +416,31 @@ button:disabled:after  {
 .detection {
     text-align: left;
     color: #a40e26;
+    margin: 10px 0;
+}
+
+.detection-errors {
+    margin: 5px 0;
+    padding-left: 20px;
+    list-style-type: none;
+}
+
+.detection-errors li {
+    margin: 5px 0;
+    padding: 5px;
+    background-color: #ffe6e6;
+    border-left: 3px solid #a40e26;
+    border-radius: 3px;
+}
+
+.detection-success {
+    text-align: left;
+    color: #2d8659;
+    margin: 10px 0;
+    padding: 5px;
+    background-color: #e6f7ed;
+    border-left: 3px solid #2d8659;
+    border-radius: 3px;
 }
 
 #error {
