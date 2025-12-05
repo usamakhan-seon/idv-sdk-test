@@ -15,7 +15,6 @@
         @beforeCapture="beforeCapture"
         @capture="capture"
         @beforeOpen="beforeOpen"
-        :auto_capture_disabled="false"
         debug
         class="id-camera"
         ref="camera"
@@ -189,6 +188,18 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
       }
       
       this.camera.setLicense(detectorLicense, 'documentDetector');
+      
+      // Enable autocapture by setting auto_capture_disabled to false
+      // Try multiple methods to ensure it's set correctly
+      try {
+        // Method 1: Direct property assignment
+        (this.camera as any).auto_capture_disabled = false;
+        // Method 2: Set attribute (some custom elements require this)
+        this.camera.setAttribute('auto_capture_disabled', 'false');
+        console.log('Autocapture enabled (property and attribute set)');
+      } catch (error) {
+        console.warn('Could not set autocapture property:', error);
+      }
 
       this.isCameraLoaded = true;
       this.fpsCounter.addEventListener('fps', this.fpsUpdated);
@@ -217,6 +228,13 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
       
       // Keep the first error for backward compatibility
       this.detectionText = errors.length > 0 ? errors[0] : '';
+      
+      // Log detection status for debugging autocapture
+      if (errors.length === 0) {
+        console.log('Document detected with no errors - autocapture should trigger if enabled');
+      } else {
+        console.log('Document detection errors:', errors);
+      }
       
       this.fpsCounter.onEvent();
     },
@@ -250,6 +268,17 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
     },
     open() {
       console.log('open');
+
+      // Ensure autocapture is enabled after camera opens
+      // Some SDKs require this to be set after the camera is fully initialized
+      try {
+        (this.camera as any).auto_capture_disabled = false;
+        this.camera.setAttribute('auto_capture_disabled', 'false');
+        console.log('Autocapture enabled after camera open');
+        console.log('Autocapture property value:', (this.camera as any).auto_capture_disabled);
+      } catch (error) {
+        console.warn('Could not set autocapture property:', error);
+      }
 
       this.isCameraReady = true;
       this.isCameraOpening = false;
