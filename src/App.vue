@@ -19,6 +19,7 @@
         class="id-camera"
         ref="camera"
         v-show="isCameraOpened"
+        :auto_capture_disabled="false"
       ></idlive-document-capture>
     </div>
     <div id="error">{{ errorText }}</div>
@@ -190,13 +191,15 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
       this.camera.setLicense(detectorLicense, 'documentDetector');
       
       // Enable autocapture by setting auto_capture_disabled to false
-      // Try multiple methods to ensure it's set correctly
+      // The attribute name is auto_capture_disabled, and false means autocapture is ENABLED
       try {
-        // Method 1: Direct property assignment
+        // Remove the attribute entirely (not present = enabled)
+        this.camera.removeAttribute('auto_capture_disabled');
+        // Also set it explicitly to false as a property
         (this.camera as any).auto_capture_disabled = false;
-        // Method 2: Set attribute (some custom elements require this)
-        this.camera.setAttribute('auto_capture_disabled', 'false');
-        console.log('Autocapture enabled (property and attribute set)');
+        console.log('Autocapture enabled - attribute removed and property set to false');
+        console.log('Autocapture property check:', (this.camera as any).auto_capture_disabled);
+        console.log('Has attribute:', this.camera.hasAttribute('auto_capture_disabled'));
       } catch (error) {
         console.warn('Could not set autocapture property:', error);
       }
@@ -232,8 +235,33 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
       // Log detection status for debugging autocapture
       if (errors.length === 0) {
         console.log('Document detected with no errors - autocapture should trigger if enabled');
+        console.log('Autocapture property value:', (this.camera as any).auto_capture_disabled);
+        console.log('Has auto_capture_disabled attribute:', this.camera.hasAttribute('auto_capture_disabled'));
+        
+        // If SDK autocapture doesn't work, manually trigger capture after a short delay
+        // This ensures the document is stable before capturing
+        if (!this.isCapturing && this.isCameraReady) {
+          // Clear any existing timeout
+          if ((this as any).autoCaptureTimeout) {
+            clearTimeout((this as any).autoCaptureTimeout);
+          }
+          
+          // Wait a bit to ensure document is stable, then capture
+          (this as any).autoCaptureTimeout = setTimeout(() => {
+            // Double-check there are still no errors and we're not already capturing
+            if (!this.isCapturing && this.isCameraReady && this.detectionErrors.length === 0) {
+              console.log('Manually triggering capture due to stable document detection');
+              this.camera.takePhoto();
+            }
+          }, 1000); // Wait 1 second for stable detection
+        }
       } else {
         console.log('Document detection errors:', errors);
+        // Clear timeout if errors appear
+        if ((this as any).autoCaptureTimeout) {
+          clearTimeout((this as any).autoCaptureTimeout);
+          (this as any).autoCaptureTimeout = null;
+        }
       }
       
       this.fpsCounter.onEvent();
@@ -272,10 +300,13 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
       // Ensure autocapture is enabled after camera opens
       // Some SDKs require this to be set after the camera is fully initialized
       try {
+        // Remove attribute (not present = enabled)
+        this.camera.removeAttribute('auto_capture_disabled');
+        // Set property to false
         (this.camera as any).auto_capture_disabled = false;
-        this.camera.setAttribute('auto_capture_disabled', 'false');
         console.log('Autocapture enabled after camera open');
         console.log('Autocapture property value:', (this.camera as any).auto_capture_disabled);
+        console.log('Has auto_capture_disabled attribute:', this.camera.hasAttribute('auto_capture_disabled'));
       } catch (error) {
         console.warn('Could not set autocapture property:', error);
       }
@@ -297,6 +328,12 @@ iHUEABYIAB0WIQREm3xOf5iQkiWFr/oM5DV3qXaw5gUCaO4zfwAKCRAM5DV3qXaw
     },
     close() {
       console.log('close');
+
+      // Clear any pending autocapture timeout
+      if ((this as any).autoCaptureTimeout) {
+        clearTimeout((this as any).autoCaptureTimeout);
+        (this as any).autoCaptureTimeout = null;
+      }
 
       this.detectionText = '';
       this.detectionErrors = [];
